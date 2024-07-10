@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Navigation System</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: url('https://cdn.mos.cms.futurecdn.net/H8gU2gA3rx7b9UiZAxteSJ.jpg') no-repeat center center fixed;
+            background-size: cover;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #0b040e;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(5px);
+            max-width: 500px;
+            width: 90%;
+            box-sizing: border-box;
+        }
+        h1 {
+            text-align: center;
+            color: #131313;
+            font-weight: 300;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            color: #2a1010;
+        }
+        select, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #000000;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #2c05f0;
+            color: #fff;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.3s, transform 0.3s;
+        }
+        button:hover {
+            background: #059be6;
+            transform: scale(1.05);
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            color: #fff;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>GPS Navigation System</h1>
+    <label for="startCity">Current Location:</label>
+    <select id="startCity">
+        <option value="Delhi">Delhi</option>
+        <option value="Mumbai">Mumbai</option>
+        <option value="Bangalore">Bangalore</option>
+        <option value="Chennai">Chennai</option>
+        <option value="Kolkata">Kolkata</option>
+        <option value="Hyderabad">Hyderabad</option>
+        <option value="Pune">Pune</option>
+        <option value="Ahmedabad">Ahmedabad</option>
+        <option value="Jaipur">Jaipur</option>
+        <option value="Lucknow">Lucknow</option>
+    </select>
+
+    <label for="endCity">Required Destination:</label>
+    <select id="endCity">
+        <option value="Delhi">Delhi</option>
+        <option value="Mumbai">Mumbai</option>
+        <option value="Bangalore">Bangalore</option>
+        <option value="Chennai">Chennai</option>
+        <option value="Kolkata">Kolkata</option>
+        <option value="Hyderabad">Hyderabad</option>
+        <option value="Pune">Pune</option>
+        <option value="Ahmedabad">Ahmedabad</option>
+        <option value="Jaipur">Jaipur</option>
+        <option value="Lucknow">Lucknow</option>
+    </select>
+
+    <label for="mode">Mode of Transport:</label>
+    <select id="mode">
+        <option value="bike">Bike</option>
+        <option value="car">Car</option>
+        <option value="train">Train</option>
+        <option value="walk">Walk</option>
+    </select>
+
+    <button onclick="calculateRoute()">Calculate Route</button>
+    <div class="loading" id="loading">Calculating...</div>
+    <div id="result" class="result"></div>
+</div>
+
+<script>
+    const cities = {
+        "Delhi": [28.6139, 77.2090],
+        "Mumbai": [19.0760, 72.8777],
+        "Bangalore": [12.9716, 77.5946],
+        "Chennai": [13.0827, 80.2707],
+        "Kolkata": [22.5726, 88.3639],
+        "Hyderabad": [17.3850, 78.4867],
+        "Pune": [18.5204, 73.8567],
+        "Ahmedabad": [23.0225, 72.5714],
+        "Jaipur": [26.9124, 75.7873],
+        "Lucknow": [26.8467, 80.9462]
+    };
+
+    const averageSpeeds = {
+        "bike": 50,
+        "car": 80,
+        "train": 120,
+        "walk": 10
+    };
+
+    function geodesic(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            0.5 - Math.cos(dLat) / 2 + 
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            (1 - Math.cos(dLon)) / 2;
+        return R * 2 * Math.asin(Math.sqrt(a));
+    }
+
+    function createGraph(cities) {
+        let graph = {};
+        for (let city1 in cities) {
+            graph[city1] = {};
+            for (let city2 in cities) {
+                if (city1 !== city2) {
+                    const [lat1, lon1] = cities[city1];
+                    const [lat2, lon2] = cities[city2];
+                    const distance = geodesic(lat1, lon1, lat2, lon2);
+                    graph[city1][city2] = distance;
+                } else {
+                    graph[city1][city2] = 0;
+                }
+            }
+        }
+        return graph;
+    }
+
+    const graph = createGraph(cities);
+
+    function dijkstra(graph, start, end, mode) {
+        let shortestDistance = {};
+        let predecessor = {};
+        let unseenNodes = { ...graph };
+        let infinity = Number.MAX_SAFE_INTEGER;
+        let path = [];
+
+        for (let node in unseenNodes) {
+            shortestDistance[node] = infinity;
+        }
+        shortestDistance[start] = 0;
+
+        while (Object.keys(unseenNodes).length) {
+            let minNode = null;
+            for (let node in unseenNodes) {
+                if (minNode === null || shortestDistance[node] < shortestDistance[minNode]) {
+                    minNode = node;
+                }
+            }
+
+            for (let childNode in graph[minNode]) {
+                let weight = graph[minNode][childNode];
+                if (weight + shortestDistance[minNode] < shortestDistance[childNode]) {
+                    shortestDistance[childNode] = weight + shortestDistance[minNode];
+                    predecessor[childNode] = minNode;
+                }
+            }
+            delete unseenNodes[minNode];
+        }
+
+        let currentNode = end;
+        while (currentNode !== start) {
+            path.unshift(currentNode);
+            currentNode = predecessor[currentNode];
+        }
+        path.unshift(start);
+
+        let totalDistance = shortestDistance[end];
+        let travelTime = totalDistance / averageSpeeds[mode];
+
+        return { path, totalDistance, travelTime };
+    }
+
+    function calculateRoute() {
+        let startCity = document.getElementById("startCity").value;
+        let endCity = document.getElementById("endCity").value;
+        let mode = document.getElementById("mode").value;
+
+        if (startCity === endCity) {
+            document.getElementById("result").innerHTML = "Start and destination cities cannot be the same.";
+            return;
+        }
+
+        document.getElementById("loading").style.display = 'block';
+        setTimeout(() => {
+            let result = dijkstra(graph, startCity, endCity, mode);
+
+            if (result) {
+                let { path, totalDistance, travelTime } = result;
+                document.getElementById("result").innerHTML = `
+                    <p>Shortest path from ${startCity} to ${endCity} is ${totalDistance.toFixed(2)} km</p>
+                    <p>Estimated travel time by ${mode} is ${travelTime.toFixed(2)} hours</p>
+                    <p>Path: ${path.join(" -> ")}</p>
+                `;
+            } else {
+                document.getElementById("result").innerHTML = "Cannot calculate route.";
+            }
+            document.getElementById("loading").style.display = 'none';
+        }, 1000);
+    }
+</script>
+
+</body>
+</html>
